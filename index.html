@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<<<<<<< HEAD
 <html>
 
 <head>
@@ -186,4 +187,94 @@ monumentListButton.addTo(map);
     </script>
 </body>
 
+=======
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaflet Map avec Ajout de Monument</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 500px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        var map = L.map('map').setView([51.505, -0.09], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+        }).addTo(map);
+
+        var customControl = L.Control.extend({
+            options: {
+                position: 'topright'
+            },
+
+            onAdd: function (map) {
+                var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+                container.style.backgroundColor = 'white';
+                container.style.width = '30px';
+                container.style.height = '30px';
+                container.innerHTML = '<span style="line-height:30px;">+</span>';
+
+                container.onclick = function() {
+                    activateAddMode();
+                }
+
+                return container;
+            }
+        });
+
+        map.addControl(new customControl());
+
+        var addMode = false;
+        var popup;
+
+        function activateAddMode() {
+            if (!addMode) {
+                addMode = true;
+                map.on('click', onMapClick);
+            } else {
+                deactivateAddMode();
+            }
+        }
+
+        function deactivateAddMode() {
+            addMode = false;
+            map.off('click', onMapClick);
+            if (popup) {
+                popup.remove();
+            }
+        }
+
+        function onMapClick(e) {
+            if (addMode) {
+                popup = L.popup()
+                .setLatLng(e.latlng)
+                .setContent('<strong>Nom du monument:</strong><input type="text" id="monumentName"/><br>' +
+                            '<strong>État de conservation:</strong><input type="text" id="conservation"/><br>' +
+                            '<strong>Remarques:</strong><textarea id="remarks"></textarea><br>' +
+                            '<button onclick="saveData()">Enregistrer</button>')
+                .openOn(map);
+            }
+        }
+
+        function saveData() {
+            var monumentName = document.getElementById("monumentName").value;
+            var conservation = document.getElementById("conservation").value;
+            var remarks = document.getElementById("remarks").value;
+
+            // Ici, vous pouvez traiter ou stocker ces informations comme vous le souhaitez
+
+            deactivateAddMode();
+        }
+
+    </script>
+</body>
+>>>>>>> 9c4f25cfad0af4fd6641089c61435418131e306f
 </html>
