@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Monuments Map</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="stylesheet" type="text/css" href="styles.css">
+    
+    <!-- Styles Leaflet et plugin de recherche -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    
+</head>
+
+<body>
+    <div id="map"></div>
+
+    <!-- Scripts Leaflet, plugin Esri et plugin de recherche -->
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/esri-leaflet@3.0.3/dist/esri-leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+
+    <script>
+
+        var map = L.map('map').setView([46.603354, 1.888334], 6); // Coordonnées pour la France
+        L.esri.basemapLayer('Streets').addTo(map);
+
+        // Ajout du contrôle de recherche
+        L.Control.geocoder().addTo(map);
+
+        // Ajout d'un bouton personnalisé pour l'ajout de monuments
+        var addMarkerButton = L.control({position: 'topright'});
+
+        var addingMarker = false;
+
+        addMarkerButton.onAdd = function (map) {
+            var container = L.DomUtil.create('div', 'leaflet-control-addmarker');
+            container.title = "Ajouter un monument";
+            L.DomEvent.on(container, 'click', function(e) {
+                // Empêche l'événement de se propager à la carte
+                L.DomEvent.stopPropagation(e);
+                map.getContainer().style.cursor = 'crosshair';
+                addingMarker = true;
+
+                document.addEventListener('keydown', function(event) {
+                    if (event.key === 'Escape') {
+                        map.getContainer().style.cursor = '';
+                        addingMarker = false;
+                    }
+                });
+            });
+
+            return container;
+        };
+
+        // Créez le groupe de marqueurs
+        var markers = L.markerClusterGroup();
+
+        map.on('click', function(e) {
+            if (addingMarker) {
+                var clickedLatLng = e.latlng;
+
+                // Créez une nouvelle instance de géocodeur
+                var geocoder = L.Control.Geocoder.nominatim();
+
+                // Utilisez le géocodeur pour obtenir le nom de la ville à partir des coordonnées du clic
+                geocoder.reverse(clickedLatLng, map.options.crs.scale(map.getZoom()), function(results) {
+                    var r = results[0];
+                    if (r) {
+                        var city = r.name;
+
+                        // Ajoutez le popup ici pour que le nom de la ville soit disponible
+                        var popup = L.popup()
+                            .setLatLng(clickedLatLng)
+                            .setContent('<form id="marker-name-form"><input type="text" id="marker-name" placeholder="Nom du monument"><input type="submit" value="Ajouter"></form>')
+                            .openOn(map);
+
+                        setTimeout(function() {
+                            var form = document.getElementById('marker-name-form');
+                            console.log('Form found:', form);
+                            form.addEventListener('submit', function(e) {
+                                e.preventDefault();
+
+                                var markerName = document.getElementById('marker-name').value;
+
+                                var data = {
+                                    name: markerName,
+                                    lat: clickedLatLng.lat,
+                                    lng: clickedLatLng.lng,
+                                    location: city // Nouvelle ligne pour la localisation
+                                };
+
+                                // Créez le marqueur pour ce monument et ajoutez-le au groupe de marqueurs
+                                var marker = L.marker([data.lat, data.lng]).bindPopup(data.name);
+                                marker.bindTooltip(data.name, {permanent: false, direction: "top"});
+                                markers.addLayer(marker);
+
+                                // Envoie les données à votre serveur
+                                console.log('Sending data:', data);
+                                fetch('http://localhost:3000/add-monument', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify(data),
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    console.log('Success:', data);
+                                    map.getContainer().style.cursor = '';
+                                    addingMarker = false;
+                                    map.closePopup();  // Ferme le popup
+                                })
+                                .catch((error) => {
+                                    console.error('Error:', error);
+                                });
+                                console.log('Data sent');
+                            });
+                        }, 0);
+                    }
+                });
+            }
+        });
+
+        // Ajoutez les marqueurs à la carte
+        map.addLayer(markers);
+
+        addMarkerButton.addTo(map);
+
+        // Lors du chargement de la page, récupérez la liste de tous les monuments
+        fetch('http://localhost:3000/get-monuments')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Success:', data);
+
+                // Pour chaque monument dans les données, créez un nouveau marqueur
+                data.forEach(monument => {
+                    var marker = L.marker([monument.lat, monument.lng]).bindPopup(monument.name);
+                    marker.bindTooltip(monument.name, {permanent: false, direction: "top"});
+                    markers.addLayer(marker);
+                });
+
+                // Ajoutez les marqueurs à la carte
+                map.addLayer(markers);
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+
+            var monumentListButton = L.control({position: 'topright'});
+
+monumentListButton.onAdd = function (map) {
+    var container = L.DomUtil.create('div', 'leaflet-control-monument-list');
+    container.innerHTML = 'Liste des monuments';
+    container.title = "Afficher la liste des monuments";
+    L.DomEvent.on(container, 'click', function(e) {
+        // Empêche l'événement de se propager à la carte
+        L.DomEvent.stopPropagation(e);
+        fetch('http://localhost:3000/get-monuments')
+            .then(response => response.json())
+            .then(data => {
+                // Crée une liste HTML des monuments
+                var monumentList = '<ul>';
+                data.forEach(monument => {
+                    monumentList += `<li>${monument.name}</li>`;
+                });
+                monumentList += '</ul>';
+
+                // Ajoute la liste à une fenêtre modale ou à un autre élément de votre choix
+                alert(monumentList);
+            });
+    });
+
+    return container;
+};
+
+monumentListButton.addTo(map);
+
+
+
+    </script>
+</body>
+
+</html>
